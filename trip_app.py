@@ -1,6 +1,9 @@
 import streamlit as st
 
-st.set_page_config(page_title="Calculadora de Viáticos", page_icon="💼")
+from PIL import Image 
+
+logo = Image.open("logo.png")
+st.image(logo, width=200)
 
 st.title("💼 Calculadora de Viáticos")
 
