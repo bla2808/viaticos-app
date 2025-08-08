@@ -6,7 +6,9 @@ import streamlit as st
 from PIL import Image
 Cargar logo
 
-logo = Image.open("logo.png") st.image(logo, width=200)
+logo = 
+Image.open("logo.png") 
+st.image(logo, width=200)
 
 Título
 
