@@ -36,11 +36,11 @@ if "transporte" not in st.session_state:
 if "personas" not in st.session_state:
     st.session_state["personas"] = 1
 
-Inputs controlados
+# Inputs controlados
 
 st.session_state.dias = st.number_input("Días de viaje", min_value=1, key="dias") st.session_state.hospedaje = st.number_input("Hospedaje por día ($)", min_value=0.0, key="hospedaje") st.session_state.alimentacion = st.number_input("Alimentación por día ($)", min_value=0.0, key="alimentacion") st.session_state.transporte = st.number_input("Transporte total ($)", min_value=0.0, key="transporte") st.session_state.personas = st.number_input("Número de personas", min_value=1, key="personas")
 
-Botón de cálculo
+# Botón de cálculo
 
 if st.button("Calcular viáticos"): total = (st.session_state.dias * (st.session_state.hospedaje + st.session_state.alimentacion) + st.session_state.transporte) * st.session_state.personas st.success(f"Total de viáticos: ${total:,.2f}")
 
