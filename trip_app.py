@@ -56,13 +56,16 @@ if st.button("Calcular viáticos"):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# Botón de reset (corregido)
+# Botón de reset usando bandera de control
 if st.button("Reiniciar formulario"):
-    st.session_state.update({
-        "dias": 1,
-        "hospedaje": 0.0,
-        "alimentacion": 0.0,
-        "transporte": 0.0,
-        "personas": 1
-    })
+    st.session_state["reset"] = True
+    st.experimental_rerun()
+
+if st.session_state.get("reset", False):
+    st.session_state["dias"] = 1
+    st.session_state["hospedaje"] = 0.0
+    st.session_state["alimentacion"] = 0.0
+    st.session_state["transporte"] = 0.0
+    st.session_state["personas"] = 1
+    st.session_state["reset"] = False
     st.experimental_rerun()
