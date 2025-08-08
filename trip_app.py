@@ -2,12 +2,10 @@
 import pandas as pd
 from io import BytesIO
 
-import streamlit as st
 from PIL import Image
-# Cargar logo
 
-logo = 
-Image.open("logo.png") 
+# Cargar logo
+logo = Image.open("logo.png")
 st.image(logo, width=200)
 
 Título
