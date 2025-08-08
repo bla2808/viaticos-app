@@ -22,7 +22,7 @@ if "transporte" not in st.session_state:
 if "personas" not in st.session_state:
     st.session_state["personas"] = 1
 
-# Inputs controlados (NO asignar manualmente valores)
+# Inputs controlados
 st.number_input("Días de viaje", min_value=1, key="dias")
 st.number_input("Hospedaje por día ($)", min_value=0.0, key="hospedaje")
 st.number_input("Alimentación por día ($)", min_value=0.0, key="alimentacion")
@@ -56,16 +56,16 @@ if st.button("Calcular viáticos"):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# Botón de reset usando bandera de control
+# Botón de reset con bandera y rerun seguro
 if st.button("Reiniciar formulario"):
     st.session_state["reset"] = True
-    st.experimental_rerun()
+    st.rerun()
 
 if st.session_state.get("reset", False):
+    st.session_state["reset"] = False
     st.session_state["dias"] = 1
     st.session_state["hospedaje"] = 0.0
     st.session_state["alimentacion"] = 0.0
     st.session_state["transporte"] = 0.0
     st.session_state["personas"] = 1
-    st.session_state["reset"] = False
-    st.experimental_rerun()
+    st.rerun()
