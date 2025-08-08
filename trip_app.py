@@ -3,6 +3,16 @@ from io import BytesIO
 import streamlit as st
 from PIL import Image
 
+# Reinicio seguro al inicio del script
+if st.session_state.get("reset", False):
+    st.session_state["reset"] = False
+    st.session_state["dias"] = 1
+    st.session_state["hospedaje"] = 0.0
+    st.session_state["alimentacion"] = 0.0
+    st.session_state["transporte"] = 0.0
+    st.session_state["personas"] = 1
+    st.rerun()
+
 # Cargar logo
 logo = Image.open("logo.png")
 st.image(logo, width=200)
@@ -22,7 +32,7 @@ if "transporte" not in st.session_state:
 if "personas" not in st.session_state:
     st.session_state["personas"] = 1
 
-# Inputs controlados
+# Inputs
 st.number_input("Días de viaje", min_value=1, key="dias")
 st.number_input("Hospedaje por día ($)", min_value=0.0, key="hospedaje")
 st.number_input("Alimentación por día ($)", min_value=0.0, key="alimentacion")
@@ -56,16 +66,7 @@ if st.button("Calcular viáticos"):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# Reinicio de formulario usando bandera
-if "reset" in st.session_state and st.session_state["reset"]:
-    st.session_state["dias"] = 1
-    st.session_state["hospedaje"] = 0.0
-    st.session_state["alimentacion"] = 0.0
-    st.session_state["transporte"] = 0.0
-    st.session_state["personas"] = 1
-    st.session_state["reset"] = False
-    st.rerun()
-
+# Botón de reset (marca bandera, reset se hace al inicio)
 if st.button("Reiniciar formulario"):
     st.session_state["reset"] = True
     st.rerun()
