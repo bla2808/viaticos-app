@@ -14,7 +14,17 @@ st.title("💼 Calculadora de Viáticos")
 
 # Inicializar estado si no existe
 
-if "dias" not in st.session_state: st.session_state["dias"] = 1 if "hospedaje" not in st.session_state: st.session_state["hospedaje"] = 0.0 if "alimentacion" not in st.session_state: st.session_state["alimentacion"] = 0.0 if "transporte" not in st.session_state: st.session_state["transporte"] = 0.0 if "personas" not in st.session_state: st.session_state["personas"] = 1
+if "dias" not in st.session_state: st.session_state["dias"] = # Inicializar estado si no existe
+if "dias" not in st.session_state:
+    st.session_state["dias"] = 1
+if "hospedaje" not in st.session_state:
+    st.session_state["hospedaje"] = 0.0
+if "alimentacion" not in st.session_state:
+    st.session_state["alimentacion"] = 0.0
+if "transporte" not in st.session_state:
+    st.session_state["transporte"] = 0.0
+if "personas" not in st.session_state:
+    st.session_state["personas"] = 1
 
 Inputs controlados
 
