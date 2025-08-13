@@ -78,9 +78,10 @@ try:
     logo = Image.open("logo.png")
     st.image(logo, width=200)
 except Exception:
-    st.write("**SEPAC Ingeniería**")
+    st.write("**SEPAC Ingeniería**")  # fallback si no hay logo
 
 st.title("💼 Calculadora de Viáticos")
+
 
 # ---------- Defaults ----------
 defaults = {
@@ -91,17 +92,20 @@ defaults = {
     "alimentacion": 0.0,         # $ por día por persona
     "transporte": 0.0,           # otros transportes
     "medio": "Auto",
-    "boleto": 0.0,               # total de boletos (no por persona)
+    "boleto": 0.0,               # total boletos
     "otros": 0.0,
     # Auto / Ruta
     "usar_apis": True,
+    "demo_mode": False,          # Nuevo: modo demo si no hay keys
     "origen": "Ciudad de México",
     "destino": "",
     "km_litro": 0.0,
     "precio_gasolina": 0.0,
-    "distancia_km": 0.0,         # distancia de UN SOLO TRAMO (ida)
-    "casetas": 0.0,              # casetas de UN SOLO TRAMO (ida)
-    "ida_vuelta": False          # duplicar distancia y casetas si está activo
+    "distancia_km": 0.0,         # solo ida
+    "casetas": 0.0,              # solo ida
+    "distancia_km_demo": 220.0,  # valores ejemplo (editables)
+    "casetas_demo": 200.0,
+    "ida_vuelta": False          # si True, multiplica distancia y casetas por 2
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -123,17 +127,22 @@ st.selectbox("Medio de transporte", ["Auto", "Avión", "Otro"], key="medio")
 if st.session_state["medio"] == "Avión":
     st.number_input("Boleto de avión (total) ($)", min_value=0.0, key="boleto")
     # limpiar campos de auto
-    st.session_state["origen"] = "Ciudad de México"
-    st.session_state["destino"] = ""
-    st.session_state["km_litro"] = 0.0
-    st.session_state["precio_gasolina"] = 0.0
-    st.session_state["distancia_km"] = 0.0
-    st.session_state["casetas"] = 0.0
-    st.session_state["ida_vuelta"] = False
+    st.session_state.update({
+        "origen": "Ciudad de México",
+        "destino": "",
+        "km_litro": 0.0,
+        "precio_gasolina": 0.0,
+        "distancia_km": 0.0,
+        "casetas": 0.0,
+        "ida_vuelta": False,
+        "demo_mode": False
+    })
 
 elif st.session_state["medio"] == "Auto":
     st.checkbox("Calcular ruta y casetas automáticamente (APIs)", key="usar_apis", value=st.session_state.get("usar_apis", True))
     st.checkbox("Calcular ida y vuelta", key="ida_vuelta")
+    st.checkbox("Modo demo (sin APIs)", key="demo_mode")
+
     cc1, cc2 = st.columns(2)
     with cc1:
         st.text_input("Origen", key="origen")
@@ -142,26 +151,32 @@ elif st.session_state["medio"] == "Auto":
         st.text_input("Destino", key="destino")
         st.number_input("Precio gasolina ($/litro)", min_value=0.0, key="precio_gasolina")
 
-    if not st.session_state["usar_apis"]:
+    if st.session_state["demo_mode"]:
+        st.number_input("Distancia DEMO (solo ida) km", min_value=0.0, key="distancia_km_demo")
+        st.number_input("Casetas DEMO (solo ida) $", min_value=0.0, key="casetas_demo")
+    elif not st.session_state["usar_apis"]:
         st.number_input("Distancia (solo ida) en km", min_value=0.0, key="distancia_km")
         st.number_input("Casetas (solo ida) en $", min_value=0.0, key="casetas")
 else:
     # limpiar ambos grupos
-    st.session_state["boleto"] = 0.0
-    st.session_state["origen"] = "Ciudad de México"
-    st.session_state["destino"] = ""
-    st.session_state["km_litro"] = 0.0
-    st.session_state["precio_gasolina"] = 0.0
-    st.session_state["distancia_km"] = 0.0
-    st.session_state["casetas"] = 0.0
-    st.session_state["ida_vuelta"] = False
+    st.session_state.update({
+        "boleto": 0.0,
+        "origen": "Ciudad de México",
+        "destino": "",
+        "km_litro": 0.0,
+        "precio_gasolina": 0.0,
+        "distancia_km": 0.0,
+        "casetas": 0.0,
+        "ida_vuelta": False,
+        "demo_mode": False
+    })
 
 st.number_input("Otros gastos ($)", min_value=0.0, key="otros")
 
 # ---------- Cálculo ----------
 if st.button("Calcular viáticos"):
-    # Si es Auto y se pidió usar APIs
-    if st.session_state["medio"] == "Auto" and st.session_state["usar_apis"]:
+    # Si es Auto y se pidió usar APIs (y NO está en modo demo)
+    if st.session_state["medio"] == "Auto" and st.session_state["usar_apis"] and not st.session_state["demo_mode"]:
         gkey = st.secrets.get("GOOGLE_MAPS_API_KEY", "")
         tkey = st.secrets.get("TOLLGURU_API_KEY", "")
         if gkey and st.session_state["origen"] and st.session_state["destino"]:
@@ -183,9 +198,22 @@ if st.button("Calcular viáticos"):
     # --- Alimentación por persona
     alimentacion_total = st.session_state["dias"] * st.session_state["alimentacion"] * st.session_state["personas"]
 
-    # --- Gasolina si aplica (usar distancia total = ida * factor)
+    # --- Distancia/Casetas fuentes (orden de prioridad)
+    # 1) Demo -> usa distancia_km_demo y casetas_demo
+    # 2) APIs -> distancia_km y casetas (si se obtuvieron)
+    # 3) Manual -> distancia_km y casetas (si el usuario los capturó)
+    if st.session_state["medio"] == "Auto" and st.session_state["demo_mode"]:
+        distancia_ida = st.session_state.get("distancia_km_demo", 0.0)
+        casetas_ida = st.session_state.get("casetas_demo", 0.0)
+    else:
+        distancia_ida = st.session_state.get("distancia_km", 0.0)
+        casetas_ida = st.session_state.get("casetas", 0.0)
+
+    distancia_total_km = distancia_ida * factor
+    casetas_totales = casetas_ida * factor
+
+    # --- Gasolina (usa distancia total)
     gasolina_total = 0.0
-    distancia_total_km = st.session_state["distancia_km"] * factor
     if (
         st.session_state["medio"] == "Auto"
         and st.session_state["km_litro"] > 0
@@ -194,9 +222,6 @@ if st.button("Calcular viáticos"):
     ):
         litros = distancia_total_km / st.session_state["km_litro"]
         gasolina_total = round(litros * st.session_state["precio_gasolina"], 2)
-
-    # Casetas totales (ida * factor)
-    casetas_totales = st.session_state["casetas"] * factor
 
     # --- Total
     total = (
@@ -212,9 +237,10 @@ if st.button("Calcular viáticos"):
     # ------ Resumen en pantalla
     st.success(f"Total de viáticos: ${total:,.2f}")
     st.info(f"Habitaciones: {habitaciones} | Hospedaje total: ${hospedaje_total:,.2f}")
-    if st.session_state["medio"] == "Auto":
+    if st.session_state["medio"] == "Auto"]:
         tramo = "ida y vuelta" if factor == 2 else "solo ida"
-        st.info(f"Distancia ({tramo}): {distancia_total_km:.1f} km | Gasolina: ${gasolina_total:,.2f} | Casetas: ${casetas_totales:,.2f}")
+        fuente = "DEMO" if st.session_state.get("demo_mode", False) else ("APIs" if st.session_state.get("usar_apis", False) else "Manual")
+        st.info(f"Distancia ({tramo}) [{fuente}]: {distancia_total_km:.1f} km | Gasolina: ${gasolina_total:,.2f} | Casetas: ${casetas_totales:,.2f}")
 
     # ------ DataFrame detallado
     df = pd.DataFrame([{
@@ -237,6 +263,7 @@ if st.button("Calcular viáticos"):
         "Distancia km (total viaje)": distancia_total_km,
         "Gasolina total": gasolina_total,
         "Casetas (total viaje)": casetas_totales,
+        "Fuente de ruta": "DEMO" if st.session_state.get("demo_mode", False) else ("APIs" if st.session_state.get("usar_apis", False) else "Manual"),
         "Otros": st.session_state["otros"],
         "TOTAL VIÁTICOS": total
     }])
