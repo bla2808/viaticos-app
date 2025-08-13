@@ -11,6 +11,9 @@ if st.session_state.get("reset", False):
     st.session_state["alimentacion"] = 0.0
     st.session_state["transporte"] = 0.0
     st.session_state["personas"] = 1
+    st.session_state["medio"] = "Auto"
+    st.session_state["boleto"] = 0.0
+    st.session_state["otros"] = 0.0
     st.rerun()
 
 # Cargar logo
@@ -27,35 +30,46 @@ defaults = {
     "alimentacion": 0.0,
     "transporte": 0.0,
     "personas": 1,
+    "medio": "Auto",
+    "boleto": 0.0,   # total de boletos (no por persona)
+    "otros": 0.0
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# Inputs
+# --- Entradas
 st.number_input("Días de viaje", min_value=1, key="dias")
 st.number_input("Hospedaje por día ($)", min_value=0.0, key="hospedaje")
 st.number_input("Alimentación por día ($)", min_value=0.0, key="alimentacion")
 st.number_input("Transporte total ($)", min_value=0.0, key="transporte")
 st.number_input("Número de personas", min_value=1, key="personas")
 
-# Botón de cálculo
+st.selectbox("Medio de transporte", ["Auto", "Avión", "Otro"], key="medio")
+if st.session_state["medio"] == "Avión":
+    st.number_input("Boleto de avión (total) ($)", min_value=0.0, key="boleto")
+else:
+    st.session_state["boleto"] = 0.0
+
+st.number_input("Otros gastos ($)", min_value=0.0, key="otros")
+
+# --- Cálculo
 if st.button("Calcular viáticos"):
-    total = (
-        st.session_state["dias"]
-        * (st.session_state["hospedaje"] + st.session_state["alimentacion"])
-        + st.session_state["transporte"]
-    ) * st.session_state["personas"]
+    base = st.session_state["dias"] * (st.session_state["hospedaje"] + st.session_state["alimentacion"]) * st.session_state["personas"]
+    total = base + st.session_state["transporte"] + st.session_state["boleto"] + st.session_state["otros"]
 
     st.success(f"Total de viáticos: ${total:,.2f}")
 
-    # Crear DataFrame
+    # DataFrame detallado
     df = pd.DataFrame([{
         "Días de viaje": st.session_state["dias"],
+        "Personas": st.session_state["personas"],
+        "Medio de transporte": st.session_state["medio"],
         "Hospedaje por día": st.session_state["hospedaje"],
         "Alimentación por día": st.session_state["alimentacion"],
         "Transporte total": st.session_state["transporte"],
-        "Personas": st.session_state["personas"],
+        "Boleto avión (total)": st.session_state["boleto"],
+        "Otros": st.session_state["otros"],
         "Total Viáticos": total
     }])
 
@@ -74,7 +88,7 @@ if st.button("Calcular viáticos"):
         for col_num, col_name in enumerate(df.columns):
             worksheet.write(0, col_num, col_name, header_fmt)
 
-        # Autoajuste de columnas (máximo entre header y valores + padding)
+        # Autoajuste de columnas
         for col_num, col_name in enumerate(df.columns):
             series_as_str = df[col_name].astype(str)
             max_len_vals = series_as_str.map(len).max() if len(series_as_str) else 0
@@ -82,7 +96,7 @@ if st.button("Calcular viáticos"):
             worksheet.set_column(col_num, col_num, max_len)
 
         # Formato moneda a columnas relevantes
-        cols_moneda = ["Hospedaje por día", "Alimentación por día", "Transporte total", "Total Viáticos"]
+        cols_moneda = ["Hospedaje por día", "Alimentación por día", "Transporte total", "Boleto avión (total)", "Otros", "Total Viáticos"]
         for col_name in cols_moneda:
             if col_name in df.columns:
                 col_idx = df.columns.get_loc(col_name)
