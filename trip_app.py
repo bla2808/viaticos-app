@@ -99,8 +99,9 @@ defaults = {
     "destino": "",
     "km_litro": 0.0,
     "precio_gasolina": 0.0,
-    "distancia_km": 0.0,
-    "casetas": 0.0,
+    "distancia_km": 0.0,         # distancia de UN SOLO TRAMO (ida)
+    "casetas": 0.0,              # casetas de UN SOLO TRAMO (ida)
+    "ida_vuelta": False          # duplicar distancia y casetas si está activo
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -128,9 +129,11 @@ if st.session_state["medio"] == "Avión":
     st.session_state["precio_gasolina"] = 0.0
     st.session_state["distancia_km"] = 0.0
     st.session_state["casetas"] = 0.0
+    st.session_state["ida_vuelta"] = False
 
 elif st.session_state["medio"] == "Auto":
     st.checkbox("Calcular ruta y casetas automáticamente (APIs)", key="usar_apis", value=st.session_state.get("usar_apis", True))
+    st.checkbox("Calcular ida y vuelta", key="ida_vuelta")
     cc1, cc2 = st.columns(2)
     with cc1:
         st.text_input("Origen", key="origen")
@@ -140,8 +143,8 @@ elif st.session_state["medio"] == "Auto":
         st.number_input("Precio gasolina ($/litro)", min_value=0.0, key="precio_gasolina")
 
     if not st.session_state["usar_apis"]:
-        st.number_input("Distancia total (km)", min_value=0.0, key="distancia_km")
-        st.number_input("Casetas ($)", min_value=0.0, key="casetas")
+        st.number_input("Distancia (solo ida) en km", min_value=0.0, key="distancia_km")
+        st.number_input("Casetas (solo ida) en $", min_value=0.0, key="casetas")
 else:
     # limpiar ambos grupos
     st.session_state["boleto"] = 0.0
@@ -151,6 +154,7 @@ else:
     st.session_state["precio_gasolina"] = 0.0
     st.session_state["distancia_km"] = 0.0
     st.session_state["casetas"] = 0.0
+    st.session_state["ida_vuelta"] = False
 
 st.number_input("Otros gastos ($)", min_value=0.0, key="otros")
 
@@ -163,11 +167,14 @@ if st.button("Calcular viáticos"):
         if gkey and st.session_state["origen"] and st.session_state["destino"]:
             km = km_from_google_directions(st.session_state["origen"], st.session_state["destino"], gkey)
             if km is not None:
-                st.session_state["distancia_km"] = km
+                st.session_state["distancia_km"] = km  # ida
         if tkey and st.session_state["origen"] and st.session_state["destino"]:
             toll = tolls_from_tollguru(st.session_state["origen"], st.session_state["destino"], tkey)
             if toll is not None:
-                st.session_state["casetas"] = toll
+                st.session_state["casetas"] = toll      # ida
+
+    # Factor ida y vuelta
+    factor = 2 if (st.session_state.get("ida_vuelta", False) and st.session_state["medio"] == "Auto") else 1
 
     # --- Hospedaje por habitación
     habitaciones = math.ceil(st.session_state["personas"] / st.session_state["personas_por_hab"])
@@ -176,16 +183,20 @@ if st.button("Calcular viáticos"):
     # --- Alimentación por persona
     alimentacion_total = st.session_state["dias"] * st.session_state["alimentacion"] * st.session_state["personas"]
 
-    # --- Gasolina si aplica
+    # --- Gasolina si aplica (usar distancia total = ida * factor)
     gasolina_total = 0.0
+    distancia_total_km = st.session_state["distancia_km"] * factor
     if (
         st.session_state["medio"] == "Auto"
         and st.session_state["km_litro"] > 0
         and st.session_state["precio_gasolina"] > 0
-        and st.session_state["distancia_km"] > 0
+        and distancia_total_km > 0
     ):
-        litros = st.session_state["distancia_km"] / st.session_state["km_litro"]
+        litros = distancia_total_km / st.session_state["km_litro"]
         gasolina_total = round(litros * st.session_state["precio_gasolina"], 2)
+
+    # Casetas totales (ida * factor)
+    casetas_totales = st.session_state["casetas"] * factor
 
     # --- Total
     total = (
@@ -195,14 +206,15 @@ if st.button("Calcular viáticos"):
         st.session_state["boleto"] +
         st.session_state["otros"] +
         gasolina_total +
-        st.session_state["casetas"]
+        casetas_totales
     )
 
     # ------ Resumen en pantalla
     st.success(f"Total de viáticos: ${total:,.2f}")
     st.info(f"Habitaciones: {habitaciones} | Hospedaje total: ${hospedaje_total:,.2f}")
     if st.session_state["medio"] == "Auto":
-        st.info(f"Distancia: {st.session_state['distancia_km']:.1f} km | Gasolina: ${gasolina_total:,.2f} | Casetas: ${st.session_state['casetas']:,.2f}")
+        tramo = "ida y vuelta" if factor == 2 else "solo ida"
+        st.info(f"Distancia ({tramo}): {distancia_total_km:.1f} km | Gasolina: ${gasolina_total:,.2f} | Casetas: ${casetas_totales:,.2f}")
 
     # ------ DataFrame detallado
     df = pd.DataFrame([{
@@ -213,6 +225,7 @@ if st.button("Calcular viáticos"):
         "Medio de transporte": st.session_state["medio"],
         "Origen": st.session_state.get("origen", ""),
         "Destino": st.session_state.get("destino", ""),
+        "Ida y vuelta": "Sí" if factor == 2 else "No",
         "Hospedaje por habitación/noche": st.session_state["costo_habitacion"],
         "Hospedaje total": hospedaje_total,
         "Alimentación por día/persona": st.session_state["alimentacion"],
@@ -221,9 +234,9 @@ if st.button("Calcular viáticos"):
         "Boleto avión (total)": st.session_state["boleto"],
         "Km por litro": st.session_state.get("km_litro", 0.0),
         "Precio gasolina": st.session_state.get("precio_gasolina", 0.0),
-        "Distancia km": st.session_state.get("distancia_km", 0.0),
+        "Distancia km (total viaje)": distancia_total_km,
         "Gasolina total": gasolina_total,
-        "Casetas": st.session_state.get("casetas", 0.0),
+        "Casetas (total viaje)": casetas_totales,
         "Otros": st.session_state["otros"],
         "TOTAL VIÁTICOS": total
     }])
@@ -251,7 +264,7 @@ if st.button("Calcular viáticos"):
             "Hospedaje por habitación/noche", "Hospedaje total",
             "Alimentación por día/persona", "Alimentación total",
             "Otros transportes", "Boleto avión (total)",
-            "Precio gasolina", "Gasolina total", "Casetas", "Otros",
+            "Precio gasolina", "Gasolina total", "Casetas (total viaje)", "Otros",
             "TOTAL VIÁTICOS"
         ]
         for col_name in cols_moneda:
