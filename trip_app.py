@@ -5,8 +5,9 @@ import streamlit as st
 from PIL import Image
 import requests
 
-# ---------- Utilidades opcionales para APIs (fase rutas/casetas) ----------
+# ---------- Utilidades para APIs ----------
 def km_from_google_directions(origin: str, destination: str, api_key: str) -> float | None:
+    """Obtiene distancia en km usando Google Directions API (primer ruta)."""
     try:
         url = "https://maps.googleapis.com/maps/api/directions/json"
         params = {
@@ -29,6 +30,7 @@ def km_from_google_directions(origin: str, destination: str, api_key: str) -> fl
         return None
 
 def tolls_from_tollguru(origin: str, destination: str, api_key: str) -> float | None:
+    """Estimación de casetas usando Tollguru (auto 2 ejes)."""
     try:
         url = "https://apis.tollguru.com/toll/v2/complete-route"
         headers = {"x-api-key": api_key, "Content-Type": "application/json"}
@@ -72,24 +74,27 @@ if st.session_state.get("reset", False):
     st.rerun()
 
 # ---------- UI base ----------
-logo = Image.open("logo.png")
-st.image(logo, width=200)
+try:
+    logo = Image.open("logo.png")
+    st.image(logo, width=200)
+except Exception:
+    st.write("**SEPAC Ingeniería**")
+
 st.title("💼 Calculadora de Viáticos")
 
 # ---------- Defaults ----------
 defaults = {
     "dias": 1,
     "personas": 1,
-    # Hospedaje por habitación (no por persona)
-    "costo_habitacion": 0.0,            # $ por habitación por noche
-    "personas_por_hab": 1,              # cuántas personas se alojan en una misma habitación
-    "alimentacion": 0.0,                # $ por persona por día
-    "transporte": 0.0,                  # otros transportes
+    "personas_por_hab": 1,
+    "costo_habitacion": 0.0,     # $ por habitación por noche
+    "alimentacion": 0.0,         # $ por día por persona
+    "transporte": 0.0,           # otros transportes
     "medio": "Auto",
-    "boleto": 0.0,                      # total boletos avión
+    "boleto": 0.0,               # total de boletos (no por persona)
     "otros": 0.0,
     # Auto / Ruta
-    "usar_apis": False,
+    "usar_apis": True,
     "origen": "Ciudad de México",
     "destino": "",
     "km_litro": 0.0,
@@ -102,16 +107,15 @@ for k, v in defaults.items():
         st.session_state[k] = v
 
 # ---------- Entradas ----------
-col1, col2 = st.columns(2)
-with col1:
+c1, c2 = st.columns(2)
+with c1:
     st.number_input("Días de viaje", min_value=1, key="dias")
     st.number_input("Número de personas", min_value=1, key="personas")
-with col2:
     st.number_input("Personas por habitación", min_value=1, key="personas_por_hab")
+with c2:
     st.number_input("Hospedaje por habitación por noche ($)", min_value=0.0, key="costo_habitacion")
-
-st.number_input("Alimentación por día por persona ($)", min_value=0.0, key="alimentacion")
-st.number_input("Otros transportes ($)", min_value=0.0, key="transporte")
+    st.number_input("Alimentación por día por persona ($)", min_value=0.0, key="alimentacion")
+    st.number_input("Otros transportes ($)", min_value=0.0, key="transporte")
 
 st.selectbox("Medio de transporte", ["Auto", "Avión", "Otro"], key="medio")
 
@@ -126,22 +130,18 @@ if st.session_state["medio"] == "Avión":
     st.session_state["casetas"] = 0.0
 
 elif st.session_state["medio"] == "Auto":
-    st.checkbox("Calcular ruta y casetas automáticamente (APIs)", key="usar_apis")
-    c1, c2 = st.columns(2)
-    with c1:
+    st.checkbox("Calcular ruta y casetas automáticamente (APIs)", key="usar_apis", value=st.session_state.get("usar_apis", True))
+    cc1, cc2 = st.columns(2)
+    with cc1:
         st.text_input("Origen", key="origen")
         st.number_input("Km por litro", min_value=0.0, key="km_litro")
-    with c2:
+    with cc2:
         st.text_input("Destino", key="destino")
         st.number_input("Precio gasolina ($/litro)", min_value=0.0, key="precio_gasolina")
 
     if not st.session_state["usar_apis"]:
         st.number_input("Distancia total (km)", min_value=0.0, key="distancia_km")
         st.number_input("Casetas ($)", min_value=0.0, key="casetas")
-    else:
-        # si hay secrets configurados, intentamos cálculo automático al presionar Calcular
-        pass
-
 else:
     # limpiar ambos grupos
     st.session_state["boleto"] = 0.0
@@ -170,7 +170,6 @@ if st.button("Calcular viáticos"):
                 st.session_state["casetas"] = toll
 
     # --- Hospedaje por habitación
-    # habitaciones = ceil(personas / personas_por_hab)
     habitaciones = math.ceil(st.session_state["personas"] / st.session_state["personas_por_hab"])
     hospedaje_total = st.session_state["dias"] * habitaciones * st.session_state["costo_habitacion"]
 
@@ -179,7 +178,12 @@ if st.button("Calcular viáticos"):
 
     # --- Gasolina si aplica
     gasolina_total = 0.0
-    if st.session_state["medio"] == "Auto" and st.session_state["km_litro"] > 0 and st.session_state["precio_gasolina"] > 0 and st.session_state["distancia_km"] > 0:
+    if (
+        st.session_state["medio"] == "Auto"
+        and st.session_state["km_litro"] > 0
+        and st.session_state["precio_gasolina"] > 0
+        and st.session_state["distancia_km"] > 0
+    ):
         litros = st.session_state["distancia_km"] / st.session_state["km_litro"]
         gasolina_total = round(litros * st.session_state["precio_gasolina"], 2)
 
@@ -194,13 +198,13 @@ if st.button("Calcular viáticos"):
         st.session_state["casetas"]
     )
 
-    # Resumen en pantalla
+    # ------ Resumen en pantalla
     st.success(f"Total de viáticos: ${total:,.2f}")
-    st.info(f"Habitaciones calculadas: {habitaciones} | Hospedaje total: ${hospedaje_total:,.2f}")
+    st.info(f"Habitaciones: {habitaciones} | Hospedaje total: ${hospedaje_total:,.2f}")
     if st.session_state["medio"] == "Auto":
         st.info(f"Distancia: {st.session_state['distancia_km']:.1f} km | Gasolina: ${gasolina_total:,.2f} | Casetas: ${st.session_state['casetas']:,.2f}")
 
-    # DataFrame detallado
+    # ------ DataFrame detallado
     df = pd.DataFrame([{
         "Días de viaje": st.session_state["dias"],
         "Personas": st.session_state["personas"],
@@ -224,7 +228,7 @@ if st.button("Calcular viáticos"):
         "TOTAL VIÁTICOS": total
     }])
 
-    # Exportar a Excel con autoajuste y formato
+    # ------ Exportar a Excel con autoajuste y formato
     output = BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         df.to_excel(writer, index=False, sheet_name="Viaticos")
