@@ -37,8 +37,8 @@ def ensure_defaults():
         st.session_state.setdefault(k, v)
 
 def reset_form():
-    # Usar update con dict para reestablecer valores de widgets
     st.session_state.update(DEFAULTS)
+    st.rerun()
 
 def km_google_distance(origin, destination, api_key):
     try:
@@ -90,7 +90,7 @@ with colB:
 
 st.divider()
 
-# Transporte dinámico
+# Transporte
 transporte_total = 0.0
 detalle_transporte = ""
 
@@ -147,13 +147,30 @@ st.number_input("Otros gastos ($)", min_value=0.0, step=50.0, key="otros")
 
 # Cálculos principales
 rooms = math.ceil(st.session_state["personas"] / st.session_state["pers_por_hab"]) if st.session_state["pers_por_hab"] > 0 else st.session_state["personas"]
-hotel = st.session_state["dias"] * st.session_state["hospedaje"] * rooms
-alimentos = st.session_state["dias"] * st.session_state["alimentacion"] * st.session_state["personas"]
-total_viaticos = hotel + alimentos + transporte_total + st.session_state["otros"]
+hotel_dia = st.session_state["hospedaje"] * rooms
+alimentos_dia = st.session_state["alimentacion"] * st.session_state["personas"]
+hotel_total = st.session_state["dias"] * hotel_dia
+alimentos_total = st.session_state["dias"] * alimentos_dia
+otros_total = st.session_state["otros"]
+total_viaticos = hotel_total + alimentos_total + transporte_total + otros_total
 
 if st.button("Calcular viáticos", type="primary", use_container_width=True):
-    st.success(f"Total de viáticos: ${total_viaticos:,.2f}")
+    # ---- Desglose en pantalla ----
+    st.subheader("Desglose final")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Hotel total", f"${hotel_total:,.2f}")
+    col2.metric("Comidas total", f"${alimentos_total:,.2f}")
+    col3.metric("Transporte total", f"${transporte_total:,.2f}")
+    col4.metric("Otros", f"${otros_total:,.2f}")
+    col5.metric("TOTAL", f"${total_viaticos:,.2f}")
 
+    with st.expander("Detalles adicionales"):
+        st.write(f"- Habitaciones requeridas: **{rooms}**")
+        st.write(f"- Hospedaje por día (todas las hab.): **${hotel_dia:,.2f}**")
+        st.write(f"- Alimentación por día (todas las personas): **${alimentos_dia:,.2f}**")
+        st.write(f"- Transporte: {detalle_transporte}")
+
+    # ---- DataFrame para Excel ----
     df = pd.DataFrame([{
         "Días de viaje": st.session_state["dias"],
         "Personas": st.session_state["personas"],
@@ -161,12 +178,12 @@ if st.button("Calcular viáticos", type="primary", use_container_width=True):
         "Habitaciones (calc)": rooms,
         "Hospedaje por día (hab)": st.session_state["hospedaje"],
         "Alimentación por día (persona)": st.session_state["alimentacion"],
-        "Hotel total": round(hotel, 2),
-        "Alimentos total": round(alimentos, 2),
+        "Hotel total": round(hotel_total, 2),
+        "Comidas total": round(alimentos_total, 2),
         "Medio transporte": st.session_state["medio"],
         "Detalle transporte": detalle_transporte,
         "Transporte total": round(transporte_total, 2),
-        "Otros": round(st.session_state["otros"], 2),
+        "Otros": round(otros_total, 2),
         "TOTAL VIÁTICOS": round(total_viaticos, 2)
     }])
 
@@ -183,5 +200,5 @@ if st.button("Calcular viáticos", type="primary", use_container_width=True):
         use_container_width=True
     )
 
-# Botón reset (callback) - evita conflictos de estado con widgets
+# Botón reset
 st.button("Reiniciar formulario", type="secondary", on_click=reset_form, use_container_width=True)
